@@ -1,0 +1,263 @@
+import java.sql.*;
+import java.util.Scanner;
+
+public class Main {
+
+    static Scanner scanner = new Scanner(System.in);
+
+    public static void main(String[] args) {
+
+        String url = "jdbc:postgresql://localhost:5432/postgres";
+        String user = "postgres";
+        String pass = "aisha070708";
+
+        try {
+            Class.forName("org.postgresql.Driver"); 
+        } catch (ClassNotFoundException e) {
+            System.out.println("PostgreSQL Driver not found.");
+            return;
+        }
+
+        try (Connection con = DriverManager.getConnection(url, user, pass)) {
+
+            while (true) {
+                showMenu();
+                int select;
+                try {
+                    select = Integer.parseInt(scanner.nextLine());
+                } catch (Exception e) {
+                    System.out.println("Enter a valid number!");
+                    continue;
+                }
+
+                switch (select) {
+                    case 1:
+                        createApartment(con);
+                        break;
+                    case 2:
+                        readAllApartments(con);
+                        break;
+                    case 3:
+                        readApartmentById(con);
+                        break;
+                    case 4:
+                        updateApartment(con);
+                        break;
+                    case 5:
+                        deleteApartment(con);
+                        break;
+                    case 6:
+                        System.out.println("Exiting program...");
+                        return;
+                    default:
+                        System.out.println("Invalid choice, try again.");
+                        break;
+                }
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Connection error: " + e.getMessage());
+        }
+    }
+
+    private static void showMenu() {
+        System.out.println(" Apartment Management Lists");
+        System.out.println("1. Add apartment");
+        System.out.println("2. Show all apartments");
+        System.out.println("3. Find apartment by ID");
+        System.out.println("4. Update apartment");
+        System.out.println("5. Delete apartment");
+        System.out.println("6. Exit");
+        System.out.print("Enter your choice: ");
+    }
+
+    private static void createApartment(Connection con) {
+        try {
+            System.out.print("Enter apartment name: ");
+            String name = scanner.nextLine().trim();
+
+            System.out.print("Enter number of rooms: ");
+            int rooms = Integer.parseInt(scanner.nextLine());
+
+            System.out.print("Enter price: ");
+            double price = Double.parseDouble(scanner.nextLine());
+
+            System.out.print("Enter type (Studio/Kitchen): ");
+            String type = scanner.nextLine();
+
+            System.out.print("Enter area in m²: ");
+            double area = Double.parseDouble(scanner.nextLine());
+
+            if (name.isEmpty() || rooms < 0 || price < 0 || area <= 0) {
+                System.out.println("Invalid input!");
+                return;
+            }
+
+            PreparedStatement checkStmt = con.prepareStatement("SELECT * FROM apartments WHERE name = ?");
+            checkStmt.setString(1, name);
+            if (checkStmt.executeQuery().next()) {
+                System.out.println("Apartment with this name already exists!");
+                return;
+            }
+
+            PreparedStatement insertStmt = con.prepareStatement(
+                    "INSERT INTO apartments(name, rooms, price, type, area) VALUES(?,?,?,?,?)"
+            );
+            insertStmt.setString(1, name);
+            insertStmt.setInt(2, rooms);
+            insertStmt.setDouble(3, price);
+            insertStmt.setString(4, type);
+            insertStmt.setDouble(5, area);
+            insertStmt.executeUpdate();
+
+            System.out.println("Apartment added!");
+
+        } catch (Exception e) {
+            System.out.println("Error: " + e.getMessage());
+        }
+    }
+
+    private static void readAllApartments(Connection con) {
+        try {
+            Statement stmt = con.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT * FROM apartments ORDER BY id");
+
+            boolean hasData = false;
+            while (rs.next()) {
+                hasData = true;
+                System.out.println(
+                        rs.getInt("id") + " | " +
+                                rs.getString("name") + " | " +
+                                rs.getInt("rooms") + " rooms | " +
+                                rs.getDouble("price") + " tenge | " +
+                                rs.getString("type") + " | " +
+                                rs.getDouble("area") + " m²"
+                );
+            }
+            if (!hasData) System.out.println("No apartments found.");
+        } catch (Exception e) {
+            System.out.println("Error: " + e.getMessage());
+        }
+    }
+
+
+    private static void readApartmentById(Connection con) {
+        try {
+            System.out.print("Enter apartment ID: ");
+            int id = Integer.parseInt(scanner.nextLine());
+
+            PreparedStatement stmt = con.prepareStatement("SELECT * FROM apartments WHERE id = ?");
+            stmt.setInt(1, id);
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                System.out.println(
+                        rs.getInt("id") + " | " +
+                                rs.getString("name") + " | " +
+                                rs.getInt("rooms") + " rooms | " +
+                                rs.getDouble("price") + " tenge | " +
+                                rs.getString("type") + " | " +
+                                rs.getDouble("area") + " m²"
+                );
+            } else
+            {
+                System.out.println("Apartment with ID " + id + " not found.");
+            }
+        } catch (Exception e) {
+            System.out.println("Error: " + e.getMessage());
+        }
+    }
+
+    private static void updateApartment(Connection con) {
+        try {
+            System.out.print("Enter apartment ID to update: ");
+            int id = Integer.parseInt(scanner.nextLine());
+
+            PreparedStatement checkStmt = con.prepareStatement("SELECT * FROM apartments WHERE id = ?");
+            checkStmt.setInt(1, id);
+            ResultSet rs = checkStmt.executeQuery();
+            if (!rs.next()) {
+                System.out.println("Apartment not found!");
+                return;
+            }
+
+            String currentName = rs.getString("name");
+            int currentRooms = rs.getInt("rooms");
+            double currentPrice = rs.getDouble("price");
+            String currentType = rs.getString("type");
+            double currentArea = rs.getDouble("area");
+
+            System.out.print("New name [" + currentName + "]: ");
+            String name = scanner.nextLine();
+            if (name.isEmpty()) name = currentName;
+
+            System.out.print("New rooms [" + currentRooms + "]: ");
+            String roomsStr = scanner.nextLine();
+            int rooms = roomsStr.isEmpty() ? currentRooms : Integer.parseInt(roomsStr);
+
+            System.out.print("New price [" + currentPrice + "]: ");
+            String priceStr = scanner.nextLine();
+            double price = priceStr.isEmpty() ? currentPrice : Double.parseDouble(priceStr);
+
+            System.out.print("New type [" + currentType + "]: ");
+            String type = scanner.nextLine();
+
+
+            System.out.print("New area [" + currentArea + "]: ");
+            String areaStr = scanner.nextLine();
+            double area = areaStr.isEmpty() ? currentArea : Double.parseDouble(areaStr);
+
+
+            if (rooms < 0 || price < 0 || area <= 0) {
+                System.out.println("Invalid input!");
+                return;
+            }
+
+            PreparedStatement checkName = con.prepareStatement(
+                    "SELECT * FROM apartments WHERE name = ? AND id != ?"
+            );
+            checkName.setString(1, name);
+            checkName.setInt(2, id);
+            if (checkName.executeQuery().next()) {
+                System.out.println("Another apartment with this name exists!");
+                return;
+            }
+
+            PreparedStatement updateStmt = con.prepareStatement(
+                    "UPDATE apartments SET name=?, rooms=?, price=?, type=?, area=? WHERE id=?"
+            );
+            updateStmt.setString(1, name);
+            updateStmt.setInt(2, rooms);
+            updateStmt.setDouble(3, price);
+            updateStmt.setString(4, type);
+            updateStmt.setDouble(5, area);
+            updateStmt.setInt(6, id);
+
+            updateStmt.executeUpdate();
+            System.out.println("Apartment updated successfully!");
+
+        } catch (Exception e) {
+            System.out.println("Error: " + e.getMessage());
+        }
+    }
+
+    private static void deleteApartment(Connection con) {
+        try {
+            System.out.print("Enter apartment ID to delete: ");
+            int id = Integer.parseInt(scanner.nextLine());
+
+            PreparedStatement stmt = con.prepareStatement("DELETE FROM apartments WHERE id = ?");
+            stmt.setInt(1, id);
+            int deleted = stmt.executeUpdate();
+
+            if (deleted > 0) {
+                System.out.println("Apartment deleted successfully!");
+            } else {
+                System.out.println("Apartment with ID " + id + " not found.");
+            }
+
+        } catch (Exception e) {
+            System.out.println("Error: " + e.getMessage());
+        }
+    }
+}
